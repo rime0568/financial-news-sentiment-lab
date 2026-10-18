@@ -1,0 +1,9 @@
+﻿metric,value
+rows,300
+manual_labels_filled,300
+positive_labels,100
+neutral_labels,144
+negative_labels,56
+sec_full_filing_rows,24
+possible_mojibake_rows,6
+canonical_text_not_matched,11

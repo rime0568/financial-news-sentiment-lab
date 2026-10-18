@@ -1,0 +1,10 @@
+﻿split,human_sentiment,rows
+test,negative,11
+test,neutral,25
+test,positive,19
+train,negative,31
+train,neutral,74
+train,positive,55
+validation,negative,11
+validation,neutral,25
+validation,positive,19
