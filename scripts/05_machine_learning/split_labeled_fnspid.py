@@ -1,9 +1,8 @@
-"""Filter usable FNSPID labels and create deterministic train/validation/test splits."""
+"""Filter usable FNSPID labels and create date-disjoint chronological splits."""
 
 from __future__ import annotations
 
 import argparse
-import hashlib
 from pathlib import Path
 
 import pandas as pd
@@ -22,29 +21,32 @@ def split(input_path: Path, output_path: Path, summary_path: Path, seed: int) ->
         & df["human_sentiment"].isin(VALID)
         & df["clean_text"].fillna("").astype(str).str.strip().ne("")
     ].copy()
-    usable["text_group"] = usable["clean_text"].map(lambda x: hashlib.sha256(str(x).encode("utf-8")).hexdigest())
-    # Keep exact duplicate texts together. Groups are shuffled deterministically
-    # within each class, then allocated approximately 60/20/20.
-    usable["split"] = ""
-    for label, idx in usable.groupby("human_sentiment", sort=True).groups.items():
-        groups = usable.loc[idx].groupby("text_group").size().sample(frac=1, random_state=seed).index.tolist()
-        target_test = round(len(idx) * 0.20)
-        target_validation = round(len(idx) * 0.20)
-        test_rows = validation_rows = 0
-        test_groups, validation_groups = set(), set()
-        for group in groups:
-            size = int((usable.loc[idx, "text_group"] == group).sum())
-            if test_rows < target_test:
-                test_groups.add(group)
-                test_rows += size
-            elif validation_rows < target_validation:
-                validation_groups.add(group)
-                validation_rows += size
-        usable.loc[usable["text_group"].isin(test_groups), "split"] = "test"
-        usable.loc[usable["text_group"].isin(validation_groups), "split"] = "validation"
-        usable.loc[(usable["human_sentiment"] == label) & usable["split"].eq(""), "split"] = "train"
-    usable.drop(columns=["text_group"], inplace=True)
-    usable = usable.sort_values(["split", "annotation_id"]).reset_index(drop=True)
+    usable["publication_datetime"] = pd.to_datetime(usable["publication_datetime"], utc=True, errors="coerce")
+    if usable["publication_datetime"].isna().any():
+        raise SystemExit("Usable rows contain invalid publication dates; chronological splitting is unsafe.")
+    if usable["clean_text"].duplicated().any():
+        raise SystemExit("Exact duplicate texts must be resolved before chronological splitting.")
+
+    usable["event_date"] = usable["publication_datetime"].dt.normalize()
+    date_counts = usable.groupby("event_date", sort=True).size()
+    cumulative = date_counts.cumsum()
+    train_cutoff = (cumulative - len(usable) * 0.60).abs().idxmin()
+    later_cumulative = cumulative.loc[cumulative.index > train_cutoff]
+    if later_cumulative.empty:
+        raise SystemExit("Not enough distinct publication dates for chronological validation and test splits.")
+    validation_cutoff = (later_cumulative - len(usable) * 0.80).abs().idxmin()
+
+    usable["split"] = "test"
+    usable.loc[usable["event_date"] <= train_cutoff, "split"] = "train"
+    usable.loc[(usable["event_date"] > train_cutoff) & (usable["event_date"] <= validation_cutoff), "split"] = "validation"
+    for split_name, frame in usable.groupby("split"):
+        if set(frame["human_sentiment"]) != VALID:
+            raise SystemExit(f"Chronological {split_name} split does not contain all three labels.")
+
+    split_rank = {"train": 0, "validation": 1, "test": 2}
+    usable["split_rank"] = usable["split"].map(split_rank)
+    usable = usable.sort_values(["split_rank", "publication_datetime", "annotation_id"]).reset_index(drop=True)
+    usable.drop(columns=["event_date", "split_rank"], inplace=True)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     summary_path.parent.mkdir(parents=True, exist_ok=True)
     usable.to_csv(output_path, index=False, encoding="utf-8-sig")
@@ -52,12 +54,13 @@ def split(input_path: Path, output_path: Path, summary_path: Path, seed: int) ->
         usable.loc[usable["split"].eq(split_name)].to_csv(
             output_path.parent / f"fnspid_labeled_{split_name}.csv", index=False, encoding="utf-8-sig"
         )
-    summary = (
-        usable.groupby(["split", "human_sentiment"], dropna=False)
-        .size()
-        .reset_index(name="rows")
-        .sort_values(["split", "human_sentiment"])
-    )
+    summary = usable.groupby(["split", "human_sentiment"], dropna=False).agg(
+        rows=("annotation_id", "size"),
+        start_date=("publication_datetime", "min"),
+        end_date=("publication_datetime", "max"),
+    ).reset_index()
+    summary["split"] = pd.Categorical(summary["split"], categories=["train", "validation", "test"], ordered=True)
+    summary = summary.sort_values(["split", "human_sentiment"])
     summary.to_csv(summary_path, index=False, encoding="utf-8-sig")
 
 
@@ -66,6 +69,6 @@ if __name__ == "__main__":
     parser.add_argument("--input", type=Path, default=Path("data/interim/annotation/manual_annotations_fnspid.csv"))
     parser.add_argument("--output", type=Path, default=Path("data/interim/model_data/fnspid_labeled_split.csv"))
     parser.add_argument("--summary", type=Path, default=Path("outputs/model_evaluation/model_split_summary.csv"))
-    parser.add_argument("--seed", type=int, default=20260816)
+    parser.add_argument("--seed", type=int, default=20260816, help="Retained for CLI compatibility; chronological splitting does not randomise rows.")
     args = parser.parse_args()
     split(args.input, args.output, args.summary, args.seed)

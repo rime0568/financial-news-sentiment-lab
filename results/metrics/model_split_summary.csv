@@ -1,10 +1,10 @@
-﻿split,human_sentiment,rows
-test,negative,11
-test,neutral,25
-test,positive,19
-train,negative,31
-train,neutral,74
-train,positive,55
-validation,negative,11
-validation,neutral,25
-validation,positive,19
+﻿split,human_sentiment,rows,start_date,end_date
+train,negative,33,2020-02-03 00:00:00+00:00,2020-04-16 00:00:00+00:00
+train,neutral,76,2020-01-03 00:00:00+00:00,2020-04-16 00:00:00+00:00
+train,positive,55,2020-01-02 00:00:00+00:00,2020-04-15 00:00:00+00:00
+validation,negative,12,2020-04-23 00:00:00+00:00,2020-05-13 00:00:00+00:00
+validation,neutral,25,2020-04-20 00:00:00+00:00,2020-05-13 00:00:00+00:00
+validation,positive,16,2020-04-17 00:00:00+00:00,2020-05-13 00:00:00+00:00
+test,negative,8,2020-05-27 00:00:00+00:00,2020-06-10 00:00:00+00:00
+test,neutral,23,2020-05-15 00:00:00+00:00,2020-06-09 00:00:00+00:00
+test,positive,22,2020-05-14 00:00:00+00:00,2020-06-10 00:00:00+00:00

@@ -27,8 +27,8 @@ flowchart LR
 ## What is complete
 
 - Unified text schema with explicit source and provenance fields.
-- A 300-row manually reviewed sample across positive, neutral and negative labels.
-- Chronological train/test split to reduce same-event leakage.
+- A 300-row manually reviewed sample across positive, neutral and negative labels; 270 FNSPID rows remain after source and text-quality exclusions.
+- Date-disjoint chronological train/validation/test splits to reduce temporal and same-day event leakage.
 - TF-IDF plus logistic-regression baseline.
 - Accuracy, Macro-F1, class-level metrics, confusion matrix and predictions.
 - Firm-day aggregation and exploratory market-reaction scripts.
@@ -36,27 +36,34 @@ flowchart LR
 
 ## Current baseline result
 
-The final held-out test contains 55 rows.
+The final held-out test contains 53 rows dated 2020-05-14 through 2020-06-10. Hyperparameter selection uses the earlier validation period; the test period is evaluated once.
 
 | Metric | Result |
 |---|---:|
-| Accuracy | 0.564 |
-| Macro-F1 | 0.538 |
-| Weighted-F1 | 0.566 |
+| Accuracy | 0.566 |
+| Macro-F1 | 0.511 |
+| Weighted-F1 | 0.556 |
 
 The score is intentionally reported without inflation. Neutral headlines were easier for the baseline than positive or negative headlines; the next step is error analysis and comparison against additional text models.
 
-![Model and regression coefficient comparison](results/figures/polished_regression_coefficient_comparison.png)
+![TF-IDF chronological holdout confusion matrix](results/figures/tfidf_chronological_confusion_matrix.png)
 
 ## LLM status
 
 The repository contains an auditable LLM workflow, but it does **not** claim a completed LLM benchmark:
 
-- `prepare_llm_sentiment_requests.py` creates versioned JSONL records.
+- `prepare_llm_sentiment_requests.py` creates versioned JSONL records for the held-out split only. Few-shot examples come exclusively from the training period and cannot overlap evaluation IDs.
 - `validate_llm_outputs.py` checks JSON parsing and allowed labels.
 - A provider/model run, saved raw outputs and error analysis are still required before reporting LLM performance.
 
 This distinction is deliberate: prepared infrastructure is not presented as an evaluated result.
+
+## Evaluation boundaries
+
+- The current gold sample has one human annotator; inter-annotator agreement has not been established.
+- The negative class is the smallest held-out class, so class-level results are reported alongside aggregate metrics.
+- The saved baseline is deliberately modest and is not evidence of trading performance.
+- A completed LLM comparison requires provider/model metadata, raw structured outputs and the same frozen test IDs.
 
 ## Reproduce the workflow
 
@@ -81,6 +88,8 @@ The numbered folders under `scripts/` show the intended sequence:
 ```
 
 Most scripts expose explicit paths through command-line arguments. Run `python <script> --help` before execution.
+
+Run `python scripts/tests/smoke_test.py` to verify date-disjoint splits and leakage-safe LLM request construction on generated synthetic records.
 
 ## Methodological controls
 

@@ -35,3 +35,9 @@ Primary outcomes are next-day absolute return and abnormal volume. OLS, ticker f
 - Do not double-count the same event across sources.
 - Preserve source-specific counts and results.
 - Report model selection using the reviewed text sample rather than market significance.
+
+## Frozen evaluation split
+
+After source and text-quality exclusions, records are ordered by publication date. Whole calendar dates are assigned to train, validation and test periods at the nearest 60/20/20 boundaries, so the same publication date cannot appear in more than one split. Exact duplicate texts are rejected before splitting. Hyperparameters are selected on validation data; final performance is reported once on the later test period.
+
+Few-shot LLM examples are selected only from the training period, with the same number of examples per class. Evaluation requests are created only for the frozen validation or test IDs, preventing example/evaluation overlap.
